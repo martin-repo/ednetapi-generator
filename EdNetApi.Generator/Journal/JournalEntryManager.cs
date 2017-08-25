@@ -401,13 +401,13 @@ namespace EdNetApi.Generator.Journal
                 systemAdded = true;
             }
 
-            classBuilder.AppendLine("    using System.ComponentModel;");
-
             if (journalClass.Properties.Any(p => p.Type.Contains("List<")))
             {
                 classBuilder.AppendLine("    using System.Collections.Generic;");
                 systemAdded = true;
             }
+
+            classBuilder.AppendLine("    using System.ComponentModel;");
 
             var enumAdded = false;
             if (journalClass.Properties.Any(p => enumClassNames.Contains(p.Type)))
