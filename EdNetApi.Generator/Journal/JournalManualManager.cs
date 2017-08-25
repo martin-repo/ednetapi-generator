@@ -13,6 +13,8 @@ namespace EdNetApi.Generator.Journal
     using System.Reflection;
     using System.Runtime.CompilerServices;
 
+    using EdNetApi.Common;
+
     using Microsoft.Office.Interop.Word;
 
     internal static class JournalManualManager
@@ -99,7 +101,7 @@ namespace EdNetApi.Generator.Journal
 
         private static ManualEntry ParseManualEntry(Document document, ref int index, string currentCategory)
         {
-            var entryName = document.Paragraphs[index].Range.Text.Trim();
+            var entryName = document.Paragraphs[index].Range.Text.Trim().ToPascalCase();
             var description = document.Paragraphs[++index].Range.Text.Trim();
             if (description.StartsWith("When written:", StringComparison.InvariantCultureIgnoreCase))
             {

@@ -9,8 +9,8 @@ namespace EdNetApi.Generator
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
+    using System.Linq;
 
-    using EdNetApi.Common;
     using EdNetApi.Generator.Journal;
 
     using Newtonsoft.Json;
@@ -24,43 +24,31 @@ namespace EdNetApi.Generator
             // Prevent accidental runs
             Debugger.Break();
 
-            const string GeneratedDescriptionsFilename = "GeneratedDescriptions.txt";
+            const string ManualEntriesFilename = "ManualEntries.txt";
 
-            Dictionary<string, string> generatedDescriptions;
-            if (File.Exists(GeneratedDescriptionsFilename))
+            List<ManualEntry> manualEntries;
+            if (File.Exists(ManualEntriesFilename))
             {
-                generatedDescriptions =
-                    JsonConvert.DeserializeObject<Dictionary<string, string>>(
-                        File.ReadAllText(GeneratedDescriptionsFilename));
+                manualEntries =
+                    JsonConvert.DeserializeObject<List<ManualEntry>>(File.ReadAllText(ManualEntriesFilename));
             }
             else
             {
-                if (!JournalManualManager.ParseManual(out List<ManualEntry> manualEntries))
+                if (!JournalManualManager.ParseManual(out manualEntries))
                 {
                     return;
                 }
 
-                generatedDescriptions = new Dictionary<string, string>();
-
-                foreach (var manualEntry in manualEntries)
-                {
-                    var name = manualEntry.Name.ToPascalCase();
-                    if (generatedDescriptions.ContainsKey(name))
-                    {
-                        continue;
-                    }
-
-                    generatedDescriptions.Add(name, manualEntry.Description);
-                }
-
-                var json = JsonConvert.SerializeObject(generatedDescriptions, Formatting.Indented);
-                File.WriteAllText(GeneratedDescriptionsFilename, json);
+                var json = JsonConvert.SerializeObject(manualEntries, Formatting.Indented);
+                File.WriteAllText(ManualEntriesFilename, json);
             }
+
+            manualEntries = manualEntries.GroupBy(me => me.Name).Select(g => g.First()).ToList();
 
             JournalEntryManager.RegenerateJournalEntryClasses(
                 @"C:\Users\Martin\Saved Games\Frontier Developments\Elite Dangerous",
-                generatedDescriptions,
-                reset: Reset);
+                manualEntries,
+                Reset);
         }
     }
 }

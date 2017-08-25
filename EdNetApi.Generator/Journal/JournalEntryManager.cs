@@ -24,7 +24,7 @@ namespace EdNetApi.Generator.Journal
     {
         public static void RegenerateJournalEntryClasses(
             string journalFolderPath,
-            Dictionary<string, string> generatedDescriptions,
+            List<ManualEntry> manualEntries,
             bool reset)
         {
             const string GeneratedClassesFilename = "GeneratedClasses.txt";
@@ -59,7 +59,7 @@ namespace EdNetApi.Generator.Journal
             var errors = new List<string>();
             foreach (var journalFile in journalFiles)
             {
-                GenerateFromJournalFile(generatedClasses, propertyEnumConnections, errors, journalFile);
+                GenerateFromJournalFile(generatedClasses, manualEntries, propertyEnumConnections, errors, journalFile);
             }
 
             if (propertyEnumConnections.Any(pec => !pec.IsUsed))
@@ -85,7 +85,7 @@ namespace EdNetApi.Generator.Journal
                 GeneratedClassesFilename,
                 JsonConvert.SerializeObject(generatedClasses.Values.ToList(), Formatting.Indented));
 
-            GenerateAndOutputJournalEventType(generatedDescriptions);
+            GenerateAndOutputJournalEventType(manualEntries);
 
             var enumClassNames = GetEnumClassNames();
             foreach (var generatedClass in generatedClasses.Values)
@@ -98,14 +98,14 @@ namespace EdNetApi.Generator.Journal
         private static PropertyEnumConnection CreateConnection(string eventName, string propertyName, string enumName)
         {
             return new PropertyEnumConnection
-                       {
-                           EventName = eventName,
-                           PropertyName = propertyName,
-                           EnumName = enumName
-                       };
+            {
+                EventName = eventName,
+                PropertyName = propertyName,
+                EnumName = enumName
+            };
         }
 
-        private static void GenerateAndOutputJournalEventType(Dictionary<string, string> generatedDescriptions)
+        private static void GenerateAndOutputJournalEventType(List<ManualEntry> manualEntries)
         {
             var filePath = Path.Combine(Path.GetDirectoryName(GetClassFolderPath()), "JournalEventType.cs");
 
@@ -123,11 +123,11 @@ namespace EdNetApi.Generator.Journal
             classBuilder.AppendLine(@"        [Description(""File header"")]");
             classBuilder.AppendLine("        Fileheader = 0,");
 
-            foreach (var generatedDescription in generatedDescriptions)
+            foreach (var manualEntry in manualEntries)
             {
                 classBuilder.AppendLine();
-                classBuilder.AppendLine($@"        [Description(""{generatedDescription.Value.Replace("\"", "\\\"")}"")]");
-                classBuilder.AppendLine($"        {generatedDescription.Key},");
+                classBuilder.AppendLine($@"        [Description(""{manualEntry.Description.Replace("\"", "\\\"")}"")]");
+                classBuilder.AppendLine($"        {manualEntry.Name},");
             }
 
             classBuilder.AppendLine("    }");
@@ -138,6 +138,7 @@ namespace EdNetApi.Generator.Journal
 
         private static void GenerateFromJournalFile(
             Dictionary<string, JournalClass> generatedClasses,
+            List<ManualEntry> manualEntries,
             List<PropertyEnumConnection> propertyEnumConnections,
             List<string> errors,
             string journalFilePath)
@@ -168,11 +169,18 @@ namespace EdNetApi.Generator.Journal
                             "JournalEntry",
                             eventName,
                             true);
+
+                        var manualParameters =
+                            manualEntries.FirstOrDefault(
+                                me => me.Name.Equals(eventName, StringComparison.OrdinalIgnoreCase))?.Parameters
+                            ?? new List<ManualParameter>();
+
                         UpdateProperties(
                             generatedClasses,
                             propertyEnumConnections,
                             journalClass,
                             eventName,
+                            manualParameters,
                             journalEntry);
                     }
                 }
@@ -188,6 +196,7 @@ namespace EdNetApi.Generator.Journal
             List<PropertyEnumConnection> propertyEnumConnections,
             string className,
             string eventName,
+            List<ManualParameter> manualParameters,
             JArray array)
         {
             if (array.First == null)
@@ -196,7 +205,13 @@ namespace EdNetApi.Generator.Journal
             }
 
             var journalClass = GetOrCreateJournalClass(generatedClasses, className);
-            UpdateProperties(generatedClasses, propertyEnumConnections, journalClass, eventName, (JObject)array.First);
+            UpdateProperties(
+                generatedClasses,
+                propertyEnumConnections,
+                journalClass,
+                eventName,
+                manualParameters,
+                (JObject)array.First);
         }
 
         private static string GetClassFolderPath([CallerFilePath] string sourceFilePath = "")
@@ -204,8 +219,9 @@ namespace EdNetApi.Generator.Journal
             var assemblyName = Assembly.GetExecutingAssembly().GetName().Name;
             var solutionFolderPath = sourceFilePath.Substring(
                 0,
-                sourceFilePath.IndexOf(assemblyName, StringComparison.InvariantCulture));
-            var classFolderPath = Path.Combine(solutionFolderPath, "EdNetApi", "Journal", "JournalEntries");
+                sourceFilePath.IndexOf(assemblyName, StringComparison.InvariantCulture) - 1);
+            var repositoryFolderPath = Path.GetDirectoryName(solutionFolderPath);
+            var classFolderPath = Path.Combine(repositoryFolderPath, "ednetapi", "EdNetApi", "Journal", "JournalEntries");
             if (classFolderPath == null)
             {
                 throw new ApplicationException("Failed to get source file path folder");
@@ -248,13 +264,13 @@ namespace EdNetApi.Generator.Journal
             {
                 var classFilePath = Path.Combine(GetClassFolderPath(), $"{className}.cs");
                 var journalClass = new JournalClass
-                                       {
-                                           FilePath = classFilePath,
-                                           Name = className,
-                                           Type = type,
-                                           Event = eventName,
-                                           Timestamp = timestamp
-                                       };
+                {
+                    FilePath = classFilePath,
+                    Name = className,
+                    Type = type,
+                    Event = eventName,
+                    Timestamp = timestamp
+                };
                 generatedClasses.Add(className, journalClass);
             }
 
@@ -385,6 +401,8 @@ namespace EdNetApi.Generator.Journal
                 systemAdded = true;
             }
 
+            classBuilder.AppendLine("    using System.ComponentModel;");
+
             if (journalClass.Properties.Any(p => p.Type.Contains("List<")))
             {
                 classBuilder.AppendLine("    using System.Collections.Generic;");
@@ -451,6 +469,7 @@ namespace EdNetApi.Generator.Journal
                     classBuilder.AppendLine("        [JsonIgnore]");
                 }
 
+                classBuilder.AppendLine($@"        [Description(""{journalClassProperty.Description}"")]");
                 classBuilder.AppendLine(
                     $"        public {journalClassProperty.Type} {journalClassProperty.Name} {journalClassProperty.Accessors}");
             }
@@ -487,6 +506,7 @@ namespace EdNetApi.Generator.Journal
             List<PropertyEnumConnection> propertyEnumConnections,
             JournalClass journalClass,
             string eventName,
+            List<ManualParameter> manualParameters,
             JObject source)
         {
             foreach (var part in source)
@@ -513,7 +533,13 @@ namespace EdNetApi.Generator.Journal
                     if (array.First.Type == JTokenType.Object)
                     {
                         var arrayType = $"{eventName}{jsonName.TrimEnd('s')}";
-                        GeneratePartTypeClass(generatedClasses, propertyEnumConnections, arrayType, eventName, array);
+                        GeneratePartTypeClass(
+                            generatedClasses,
+                            propertyEnumConnections,
+                            arrayType,
+                            eventName,
+                            manualParameters,
+                            array);
                         type = $"List<{arrayType}>";
                     }
                     else
@@ -534,13 +560,13 @@ namespace EdNetApi.Generator.Journal
                     {
                         enumAccessor =
                             new JournalProperty
-                                {
-                                    Type = propertyEnumConnection.EnumName,
-                                    Name = name,
-                                    Accessors = $@"=> {name}Raw.GetEnumValue<{
+                            {
+                                Type = propertyEnumConnection.EnumName,
+                                Name = name,
+                                Accessors = $@"=> {name}Raw.GetEnumValue<{
                                             propertyEnumConnection.EnumName
                                         }>();"
-                                };
+                            };
                         name += "Raw";
                         propertyEnumConnection.IsUsed = true;
                     }
@@ -559,17 +585,24 @@ namespace EdNetApi.Generator.Journal
                     continue;
                 }
 
+                var manualParameter = manualParameters.FirstOrDefault(
+                    p => p.Name.Equals(jsonName, StringComparison.OrdinalIgnoreCase));
+                var description = manualParameter?.Description?.Replace("\"", "\\\"").Replace("\r", string.Empty)
+                    .Replace("\n", " - ").Trim();
+
                 var journalProperty = new JournalProperty
-                                          {
-                                              JsonName = jsonName,
-                                              Type = type,
-                                              Name = name,
-                                              Accessors = "{ get; internal set; }"
-                                          };
+                {
+                    JsonName = jsonName,
+                    Description = description,
+                    Type = type,
+                    Name = name,
+                    Accessors = "{ get; internal set; }"
+                };
                 journalClass.Properties.Add(journalProperty);
 
                 if (enumAccessor != null)
                 {
+                    enumAccessor.Description = description;
                     journalClass.Properties.Add(enumAccessor);
                 }
             }
