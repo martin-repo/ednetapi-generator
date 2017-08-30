@@ -122,6 +122,12 @@ namespace EdNetApi.Generator.Journal
             classBuilder.AppendLine();
             classBuilder.AppendLine(@"        [Description(""File header"")]");
             classBuilder.AppendLine("        Fileheader = 0,");
+            classBuilder.AppendLine();
+            classBuilder.AppendLine(@"        [Description(""Triggered on the hour every hour"")]");
+            classBuilder.AppendLine("        GamePlayed,");
+            classBuilder.AppendLine();
+            classBuilder.AppendLine(@"        [Description(""Triggered when OCR analysis of a mission is completed"")]");
+            classBuilder.AppendLine("        MissionAnalyzed,");
 
             foreach (var manualEntry in manualEntries)
             {
