@@ -60,8 +60,8 @@ namespace EdNetApi.Generator.Journal
             var solutionFolderPath = sourceFilePath.Substring(
                 0,
                 sourceFilePath.IndexOf(assemblyName, StringComparison.InvariantCulture));
-            var journalFolderPath = Path.Combine(solutionFolderPath, assemblyName, "Resources", "JournalManual", "v11");
-            var journalFilePath = Path.Combine(journalFolderPath, "Journal_Manual.doc");
+            var journalFolderPath = Path.Combine(solutionFolderPath, assemblyName, "Resources", "JournalManual", "v13");
+            var journalFilePath = Path.Combine(journalFolderPath, "Journal_Manual_v13.doc");
             return journalFilePath;
         }
 
